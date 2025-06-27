@@ -1,5 +1,3 @@
-# RAG-Customer-Support-Chatbot
-
 # 🤖 AI-Powered Customer Support RAG System
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -8,16 +6,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > **Enterprise-grade RAG (Retrieval-Augmented Generation) system that transforms customer support by providing instant, accurate answers from your knowledge base documents.**
-
-![Demo Screenshot](https://via.placeholder.com/800x400/2196F3/FFFFFF?text=RAG+Customer+Support+Dashboard)
-
-## 🎯 Business Value
-
-- **⚡ 95% Faster Response Time**: From hours to seconds
-- **💰 60% Cost Reduction**: Automated responses reduce agent workload  
-- **🌍 Multi-language Support**: Arabic & English for UAE market
-- **📚 Knowledge Consistency**: Single source of truth across all responses
-- **🎯 95% Accuracy**: AI responses with source citations
 
 ## ✨ Key Features
 

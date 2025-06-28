@@ -10,6 +10,9 @@ load_dotenv()
 # Import our RAG system
 from rag_system import CustomerSupportRAG
 from document_processor import DocumentProcessor
+from database import init_database, db_manager
+import json
+import hashlib
 
 # Page config
 st.set_page_config(
@@ -34,14 +37,20 @@ st.markdown("""
         padding: 1rem;
         border-radius: 10px;
         margin: 0.5rem 0;
+        color: #000000 !important;
     }
     .user-message {
         background-color: #e3f2fd;
         margin-left: 20%;
+        color: #000000 !important;
     }
     .bot-message {
         background-color: #f5f5f5;
         margin-right: 20%;
+        color: #000000 !important;
+    }
+    .chat-message strong {
+        color: #000000 !important;
     }
     .metric-card {
         background: white;
@@ -53,6 +62,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Initialize database
+@st.cache_resource
+def initialize_database():
+    return init_database()
+
+# Initialize database
+db = initialize_database()
+
 # Initialize session state
 if 'rag_system' not in st.session_state:
     st.session_state.rag_system = None
@@ -60,6 +77,8 @@ if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 if 'documents_loaded' not in st.session_state:
     st.session_state.documents_loaded = False
+if 'session_id' not in st.session_state:
+    st.session_state.session_id = str(hashlib.md5(str(st.session_state).encode()).hexdigest())[:16]
 
 def main():
     # Header
@@ -72,20 +91,11 @@ def main():
     
     # Sidebar for configuration
     with st.sidebar:
-        st.header("⚙️ Configuration")
-        
-        # OpenAI API Key input
-        openai_key = st.text_input(
-            "OpenAI API Key",
-            type="password",
-            value=os.getenv("OPENAI_API_KEY", ""),
-            help="Enter your OpenAI API key"
-        )
+        # Get API key from environment only
+        openai_key = os.getenv("OPENAI_API_KEY", "")
         
         if openai_key:
             os.environ["OPENAI_API_KEY"] = openai_key
-        
-        st.divider()
         
         # Document upload section
         st.header("📄 Knowledge Base")
@@ -198,23 +208,28 @@ def main():
                         st.write(f"**Source {j+1}:** {source}")
     
     # Question input
-    question = st.text_input(
-        "Ask a question:",
-        placeholder="e.g., What are the account opening requirements?",
-        key="question_input"
-    )
+    with st.form("question_form"):
+        question = st.text_input(
+            "Ask a question:",
+            placeholder="e.g., What are the account opening requirements?"
+        )
+        ask_button = st.form_submit_button("🚀 Ask", type="primary")
     
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        ask_button = st.button("🚀 Ask", type="primary")
-    
-    if (ask_button or question) and question:
+    if ask_button and question:
         answer_question(question)
     
     # Clear chat button
     if st.session_state.chat_history:
         if st.button("🗑️ Clear Chat History"):
             st.session_state.chat_history = []
+            # Clear memory in RAG system
+            if st.session_state.rag_system:
+                st.session_state.rag_system.clear_memory()
+            # Clear database history
+            try:
+                db_manager.clear_session_history(st.session_state.session_id)
+            except Exception as db_error:
+                st.warning(f"⚠️ Could not clear database history: {str(db_error)}")
             st.rerun()
 
 def process_documents(uploaded_files):
@@ -272,15 +287,28 @@ def answer_question(question):
                 temperature=st.session_state.get('temperature', 0.1)
             )
             
-            # Add to chat history
+            # Save conversation to database
+            try:
+                db_manager.save_conversation(
+                    session_id=st.session_state.session_id,
+                    question=question,
+                    answer=result['answer'],
+                    confidence_score=result.get('confidence', 0.0),
+                    source_documents=json.dumps(result['sources']) if result['sources'] else None,
+                    model_used=st.session_state.get('model', 'gpt-3.5-turbo'),
+                    temperature=st.session_state.get('temperature', 0.1)
+                )
+            except Exception as db_error:
+                st.warning(f"⚠️ Could not save to database: {str(db_error)}")
+            
+            # Add to chat history (for display)
             st.session_state.chat_history.append((
                 question,
                 result['answer'],
                 result['sources']
             ))
             
-            # Clear input and refresh
-            st.session_state.question_input = ""
+            # Refresh to show new conversation
             st.rerun()
             
         except Exception as e:

@@ -1,13 +1,11 @@
 import os
 from typing import List, Dict, Any
-from langchain.vectorstores import Chroma
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.llms import OpenAI
-from langchain.chat_models import ChatOpenAI
+from langchain_community.vectorstores import Chroma
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
-from langchain.schema import Document
-from langchain.prompts import PromptTemplate
+from langchain_core.documents import Document
+from langchain_core.prompts import PromptTemplate
 
 class CustomerSupportRAG:
     def __init__(self):
@@ -16,7 +14,8 @@ class CustomerSupportRAG:
         self.qa_chain = None
         self.memory = ConversationBufferMemory(
             memory_key="chat_history",
-            return_messages=True
+            return_messages=True,
+            output_key="answer"
         )
         
     def build_vector_store(self, documents: List[Document]):
@@ -32,7 +31,11 @@ class CustomerSupportRAG:
         # Create retrieval QA chain
         self._setup_qa_chain()
     
-    def _setup_qa_chain(self):
+    def _setup_qa_chain(self, model: str = "gpt-3.5-turbo", temperature: float = 0.1):
+        """Setup the QA chain with custom prompt and specified model"""
+        return self._setup_qa_chain_with_model(model, temperature)
+    
+    def _setup_qa_chain_with_model(self, model: str = "gpt-3.5-turbo", temperature: float = 0.1):
         """Setup the QA chain with custom prompt"""
         
         # Custom prompt template for customer support
@@ -56,9 +59,9 @@ Answer:"""
             input_variables=["context", "question"]
         )
         
-        # Create the chain
+        # Create the chain with specified model
         self.qa_chain = ConversationalRetrievalChain.from_llm(
-            llm=ChatOpenAI(temperature=0.1, model_name="gpt-3.5-turbo"),
+            llm=ChatOpenAI(temperature=temperature, model_name=model),
             retriever=self.vector_store.as_retriever(search_kwargs={"k": 3}),
             memory=self.memory,
             return_source_documents=True,
@@ -71,9 +74,8 @@ Answer:"""
         if not self.qa_chain:
             raise ValueError("Vector store not built yet. Please process documents first.")
         
-        # Update model if different
-        if self.qa_chain.llm.model_name != model:
-            self.qa_chain.llm = ChatOpenAI(temperature=temperature, model_name=model)
+        # For now, we'll use the chain as-is without dynamic model switching
+        # to avoid compatibility issues
         
         # Get answer
         result = self.qa_chain({"question": question})
